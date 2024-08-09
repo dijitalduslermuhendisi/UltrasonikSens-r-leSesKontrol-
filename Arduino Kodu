@@ -1,0 +1,30 @@
+#define trig_pin 9
+#define echo_pin 10
+
+long sure;
+int mesafe;
+void setup() {
+  pinMode(trig_pin, OUTPUT);
+  pinMode(echo_pin, INPUT);
+  Serial.begin(9600);
+  
+}
+
+void loop() {
+ digitalWrite(trig_pin, LOW);
+ delayMicroseconds(2);
+
+ digitalWrite(trig_pin, HIGH);
+ delayMicroseconds(10);
+ digitalWrite(trig_pin, LOW);
+
+ sure= pulseIn(echo_pin, HIGH);
+ mesafe = sure*0.034/2;
+
+ if(mesafe < 20){
+   int ses_seviyesi = map(mesafe, 5, 20, 100, 0);
+   Serial.print("Ses Seviyesi: ");
+   Serial.print(ses_seviyesi);
+  }
+  delay(100);
+}
