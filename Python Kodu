@@ -1,0 +1,71 @@
+import serial
+import time
+from pycaw.pycaw import AudioUtilities, IAudioEndpointVolume
+from comtypes import CLSCTX_ALL
+from ctypes import cast, POINTER
+
+# Seri port bağlantısı için fonksiyon
+def connect_serial(port='COM5', baud_rate=9600, timeout=1):
+    while True:
+        try:
+            return serial.Serial(port, baud_rate, timeout=timeout)
+        except serial.SerialException:
+            safe_print(f"Hata: {port} portuna bağlanılamadı. Bağlantıyı ve port numarasını kontrol edin. 5 saniye sonra tekrar denenecek.")
+            time.sleep(5)
+
+# Güvenli print fonksiyonu
+def safe_print(*args, **kwargs):
+    try:
+        print(*args, **kwargs)
+    except OSError:
+        pass
+
+# Windows ses kontrolü için nesne oluştur
+devices = AudioUtilities.GetSpeakers()
+interface = devices.Activate(
+    IAudioEndpointVolume._iid_, CLSCTX_ALL, None)
+volume = cast(interface, POINTER(IAudioEndpointVolume))
+
+# Seri port bağlantısını kur
+ser = connect_serial()
+
+safe_print("Arduino'dan veri bekleniyor...")
+
+last_volume = None
+last_update_time = time.time()
+
+def set_volume(vol):
+    vol_float = vol / 100.0
+    volume.SetMasterVolumeLevelScalar(vol_float, None)
+    safe_print(f"Ses seviyesi {vol} olarak ayarlandı.")
+
+while True:
+    try:
+        current_time = time.time()
+        if ser.in_waiting > 0:
+            line = ser.readline().decode('utf-8').rstrip()
+            if line.startswith("Volume:"):
+                vol = int(line.split(":")[1])
+                if vol < 5:
+                    vol = 5
+                elif vol > 100:
+                    vol = 100
+                
+                last_volume = vol
+                last_update_time = current_time
+                set_volume(last_volume)
+        
+        # 3 saniyede bir kontrol et
+        if current_time - last_update_time >= 3:
+            if last_volume is not None:
+                set_volume(last_volume)
+            last_update_time = current_time
+        
+    except serial.SerialException:
+        safe_print("Seri port bağlantısı kesildi. Yeniden bağlanmaya çalışılıyor...")
+        ser.close()
+        ser = connect_serial()
+    except Exception as e:
+        safe_print(f"Beklenmeyen bir hata oluştu: {e}")
+    
+    time.sleep(0.1)
